@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  background-color: #eef2f7;
+  color: #0c1a2e;
+  font-family: Outfit, system-ui, sans-serif;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Full Screen Dark Mode Styles */
+html.dark,
+html.dark body,
+html.dark #root {
+  background-color: #07111f;
+  color: #f1f5f9;
+}
+
+html.dark .bg-\[\#eef2f7\] {
+  background-color: #07111f !important;
+}
+
+html.dark .bg-white {
+  background-color: #0e1b2d !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .bg-white\/80 {
+  background-color: rgba(14, 27, 45, 0.9) !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .bg-slate-50 {
+  background-color: #15253b !important;
+  color: #cbd5e1 !important;
+}
+
+html.dark .bg-slate-100 {
+  background-color: #182b45 !important;
+  color: #e2e8f0 !important;
+}
+
+/* Sidebar Dark Theme Adaptation */
+html.dark aside {
+  background-color: #07111f !important;
+  border-color: #1e324c !important;
+}
+
+html.dark .text-ink-900,
+html.dark .text-slate-900,
+html.dark .text-slate-800 {
+  color: #f8fafc !important;
+}
+
+html.dark .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark .border-slate-200,
+html.dark .border-slate-200\/80 {
+  border-color: #1e324c !important;
+}
+
+html.dark .border-slate-100 {
+  border-color: #17283e !important;
+}
+
+html.dark .border-slate-300 {
+  border-color: #263e5c !important;
+}
+
+html.dark .dropzone {
+  border-color: #263e5c !important;
+  background-color: #112035 !important;
+}
+
+html.dark table thead {
+  background-color: #15253b !important;
+  color: #94a3b8 !important;
+}
+
+html.dark table tbody tr {
+  border-color: #17283e !important;
+}
+
+html.dark table tbody tr:hover {
+  background-color: #15263d !important;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #15253b !important;
+  color: #f1f5f9 !important;
+  border-color: #263e5c !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+.auth-grid {
+  background-color: #07111f;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% 20%, rgba(61, 214, 184, 0.18), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(99, 102, 241, 0.16), transparent),
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: auto, auto, 36px 36px, 36px 36px;
+}
+
+.dropzone {
+  @apply rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/80 p-8 text-center transition;
+}
+
+.dropzone.active {
+  @apply border-accent-500 bg-teal-50;
+}
+
+.score-ring {
+  background: conic-gradient(#14b8a6 calc(var(--score) * 1%), #e2e8f0 0);
+}

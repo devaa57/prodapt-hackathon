@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.venv/
+venv/
+__pycache__/
+*.pyc
+backend/uploads/
+backend/hirelens.db
+.env
+*.local
+.DS_Store

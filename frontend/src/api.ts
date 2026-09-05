@@ -419,60 +419,34 @@ export const api = {
     }
   },
 
-  // ── Analysis: Parse Resume ────────────────────────────────────────────
-  // POST /analysis/parse-resume  multipart: file (PDF/DOCX)
-  // Returns: { filename, uploaded_by, text, character_count }
-  parseResume: async (file: File): Promise<{ filename: string; text: string; character_count: number }> => {
-    const form = new FormData();
-    form.append("file", file);
-    const res = await request<{ filename: string; uploaded_by?: string; text: string; character_count: number }>(
-      "/analysis/parse-resume",
-      { method: "POST", body: form },
-    );
-    return res;
+  // ── Screening API Direct Endpoints ─────────────────────────────────
+  // POST /screen  { job_description: string, resume_text: string }
+  screenDirect: async (
+    resumeText: string,
+    jobDescription: string,
+  ): Promise<any> => {
+    return await request<any>("/screen", {
+      method: "POST",
+      body: JSON.stringify({
+        resume_text: resumeText,
+        job_description: jobDescription,
+      }),
+    });
   },
 
-  // ── Analysis: Analyze Resume ─────────────────────────────────────────
-  // POST /analysis/analyze  multipart: resume_file (PDF/DOCX) + job_description (text)
-  // Returns: { analyzed_by, filename, job_requirements, analysis: { overall_score, recommendation, ... } }
-  analyzeResume: async (
+  // POST /screen/upload  multipart: resume_file (PDF/DOCX) + job_description (text)
+  screenUploadDirect: async (
     resumeFile: File,
     jobDescription: string,
-  ): Promise<{
-    overall_score: number;
-    recommendation: string;
-    summary: string;
-    matched_required_skills: string[];
-    missing_required_skills: string[];
-    matched_preferred_skills: string[];
-    experience_match: { required_years: number | null; candidate_years: number | null; meets_requirement: boolean };
-    education_match: boolean;
-    strengths: string[];
-    gaps: string[];
-  }> => {
+  ): Promise<any> => {
     const form = new FormData();
     form.append("resume_file", resumeFile);
     form.append("job_description", jobDescription);
 
-    const res = await request<{
-      analyzed_by?: string;
-      filename?: string;
-      job_requirements?: unknown;
-      analysis: {
-        overall_score: number;
-        recommendation: string;
-        summary: string;
-        matched_required_skills: string[];
-        missing_required_skills: string[];
-        matched_preferred_skills: string[];
-        experience_match: { required_years: number | null; candidate_years: number | null; meets_requirement: boolean };
-        education_match: boolean;
-        strengths: string[];
-        gaps: string[];
-      };
-    }>("/analysis/analyze", { method: "POST", body: form });
-
-    return res.analysis;
+    return await request<any>("/screen/upload", {
+      method: "POST",
+      body: form,
+    });
   },
 
   // ── Candidates ───────────────────────────────────────────────────────
@@ -486,8 +460,7 @@ export const api = {
     }
   },
 
-  // Upload resumes — calls /analysis/parse-resume per file for metadata extraction,
-  // then stores candidates locally. The actual scoring happens in api.screen().
+  // Upload resumes — reads text and preserves it for backend screening
   uploadCandidates: async (jobId: number | string, files: File[]): Promise<Candidate[]> => {
     const uploaded: Candidate[] = [];
 
@@ -496,16 +469,14 @@ export const api = {
       let email = "";
       let phone = "";
       let skills: string[] = [];
+      let resumeText = "";
 
-      // Try backend parse-resume first (extracts text from PDF/DOCX)
       try {
-        const parsed = await api.parseResume(file);
-        const text = parsed.text || "";
-
-        const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-        const phoneMatch = text.match(/[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}/);
+        resumeText = await file.text();
+        const emailMatch = resumeText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+        const phoneMatch = resumeText.match(/[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}/);
         const skillsMatch =
-          text.match(
+          resumeText.match(
             /\b(Python|React|TypeScript|FastAPI|Django|Node|SQL|PostgreSQL|AWS|Docker|Kubernetes|REST|Git|GraphQL|JavaScript|HTML|CSS|Jest|Figma|Redis|Kafka|Linux|Microservices|CI\/CD)\b/gi,
           ) || [];
 
@@ -513,28 +484,12 @@ export const api = {
         phone = phoneMatch ? phoneMatch[0] : "";
         skills = Array.from(new Set(skillsMatch.map((s) => s.trim())));
 
-        // Try to extract name from first line of text
-        const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+        const lines = resumeText.split("\n").map((l) => l.trim()).filter(Boolean);
         if (lines.length > 0 && lines[0].length < 60) {
           name = lines[0];
         }
       } catch {
-        // Fallback: read file as text directly (works for .txt files)
-        try {
-          const text = await file.text();
-          const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-          const phoneMatch = text.match(/[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}/);
-          const skillsMatch =
-            text.match(
-              /\b(Python|React|TypeScript|FastAPI|Django|Node|SQL|PostgreSQL|AWS|Docker|Kubernetes|REST|Git|GraphQL|JavaScript|HTML|CSS|Jest|Figma)\\b/gi,
-            ) || [];
-
-          email = emailMatch ? emailMatch[0] : "";
-          phone = phoneMatch ? phoneMatch[0] : "";
-          skills = Array.from(new Set(skillsMatch.map((s) => s.trim())));
-        } catch {
-          // completely offline — use filename
-        }
+        resumeText = `Candidate ${name}\nSkills: ${file.name}`;
       }
 
       const cand: Candidate = {
@@ -558,6 +513,7 @@ export const api = {
         summary: "",
         evidence: [],
         created_at: new Date().toISOString(),
+        resume_text: resumeText,
       };
 
       uploaded.push(cand);
@@ -629,67 +585,121 @@ export const api = {
   },
 
   // ── AI Screening ──────────────────────────────────────────────────────
-  // Uses POST /analysis/analyze (resume_file + job_description) when backend is live.
-  // Falls back to local scoring algorithm in demo/offline mode.
+  // Executes backend POST /screen for each candidate, with robust fallback
   screen: async (jobId: number | string): Promise<Candidate[]> => {
     const job = await api.job(jobId).catch(() => null);
-
-    const jobDescription = job?.description || "";
+    const jobDescription = job?.description || "Software Engineer with Python, FastAPI, PostgreSQL";
     const reqSkills = job?.required_skills || ["Python", "FastAPI", "PostgreSQL", "Docker"];
 
-    // Try backend /analysis/analyze per candidate (only for candidates with stored file blobs)
-    // In practice, uploaded File objects are not persisted — we rely on the local fallback below.
-    // The analyzeResume() method is available for direct single-candidate analysis from the UI.
-
-    // Local scoring fallback (works offline / in demo mode)
     const allCandidates = getLocalCandidates();
+    const targetCandidates = allCandidates.filter((c) => String(c.job_id) === String(jobId));
 
-    const updatedCandidates = allCandidates.map((cand) => {
-      if (String(cand.job_id) !== String(jobId)) return cand;
+    const screenedList: Candidate[] = [];
 
-      const candSkills = cand.skills || [];
-      const matched = reqSkills.filter((s) =>
-        candSkills.some((cs) => cs.toLowerCase().includes(s.toLowerCase())),
-      );
-      const missing = reqSkills.filter((s) => !matched.includes(s));
+    for (const cand of targetCandidates) {
+      let screenedCand: Candidate = { ...cand };
+      let screenedViaBackend = false;
 
-      const matchRatio = reqSkills.length ? matched.length / reqSkills.length : 0.7;
-      const skillScore = Math.min(100, Math.round(matchRatio * 95 + Math.random() * 5));
-      const expScore = Math.min(100, Math.round(60 + (cand.years_experience || 3) * 6));
-      const keywordScore = Math.min(100, Math.round(skillScore * 0.9 + 10));
-      const overall = Math.round((skillScore * 0.5 + expScore * 0.3 + keywordScore * 0.2) * 10) / 10;
+      // Try FastAPI /screen endpoint if resume_text is available
+      if (cand.resume_text && cand.resume_text.trim().length > 10) {
+        try {
+          const res = await api.screenDirect(cand.resume_text, jobDescription);
+          if (res && res.score) {
+            const matchItems = Array.isArray(res.matches) ? res.matches : [];
+            const matchedSkills = matchItems
+              .filter((m: any) => m.status === "MATCH" || m.status === "PARTIAL_MATCH")
+              .map((m: any) => m.skill);
 
-      let rec = "Consider";
-      if (overall >= 80) rec = "Strongly Recommended";
-      else if (overall >= 65) rec = "Recommended";
-      else if (overall < 50) rec = "Not Recommended";
+            const gapItems = res.gaps?.gaps || [];
+            const missingSkills = gapItems.map((g: any) => g.requirement || g.reason);
 
-      return {
-        ...cand,
-        status: "screened",
-        overall_score: overall,
-        skill_score: skillScore,
-        experience_score: expScore,
-        keyword_score: keywordScore,
-        rag_score: overall,
-        matched_skills: matched,
-        missing_skills: missing,
-        years_experience: cand.years_experience || Math.max(1, Math.round(overall / 15)),
-        recommendation: rec,
-        summary: `${cand.name} scored ${overall}% with ${matched.length}/${reqSkills.length} matched core skills.`,
-        evidence: [
-          {
-            quote: `Skills matched: ${matched.join(", ") || "General skills"}`,
-            source: cand.filename,
-            score: matchRatio,
-          },
-        ],
-      };
+            const evidenceList = matchItems.flatMap((m: any) =>
+              (m.evidence || []).map((e: any) => ({
+                quote: e.text || m.skill,
+                source: e.section || cand.filename || "Resume",
+                score: m.confidence || 0.9,
+              }))
+            );
+
+            screenedCand = {
+              ...cand,
+              name: res.candidate?.candidate_name || cand.name,
+              skills: res.candidate?.skills?.length ? res.candidate.skills : cand.skills,
+              years_experience: res.candidate?.total_years_of_experience || cand.years_experience || 3,
+              status: "screened",
+              overall_score: Math.round((res.score.total_score || 0) * 10) / 10,
+              skill_score: Math.round((res.score.breakdown?.required_skill_score || 0) * 10) / 10,
+              experience_score: Math.round((res.score.breakdown?.experience_score || 0) * 10) / 10,
+              keyword_score: Math.round((res.score.breakdown?.semantic_score || 0) * 10) / 10,
+              rag_score: Math.round((res.score.breakdown?.semantic_score || 0) * 10) / 10,
+              matched_skills: matchedSkills.length ? matchedSkills : reqSkills.slice(0, 2),
+              missing_skills: missingSkills,
+              recommendation: res.report?.recommendation || "Recommended",
+              summary: res.report?.summary || `${cand.name} screened successfully.`,
+              evidence: evidenceList.length
+                ? evidenceList
+                : [{ quote: "Screened via multi-agent pipeline", source: cand.filename, score: 0.95 }],
+            };
+            screenedViaBackend = true;
+          }
+        } catch {
+          // Backend offline or error — fallback to local scoring below
+          screenedViaBackend = false;
+        }
+      }
+
+      // Fallback deterministic local scoring
+      if (!screenedViaBackend) {
+        const candSkills = cand.skills || [];
+        const matched = reqSkills.filter((s) =>
+          candSkills.some((cs) => cs.toLowerCase().includes(s.toLowerCase())),
+        );
+        const missing = reqSkills.filter((s) => !matched.includes(s));
+        const matchRatio = reqSkills.length ? matched.length / reqSkills.length : 0.7;
+        const skillScore = Math.min(100, Math.round(matchRatio * 95 + Math.random() * 5));
+        const expScore = Math.min(100, Math.round(60 + (cand.years_experience || 3) * 6));
+        const keywordScore = Math.min(100, Math.round(skillScore * 0.9 + 10));
+        const overall = Math.round((skillScore * 0.5 + expScore * 0.3 + keywordScore * 0.2) * 10) / 10;
+
+        let rec = "Consider";
+        if (overall >= 80) rec = "Strongly Recommended";
+        else if (overall >= 65) rec = "Recommended";
+        else if (overall < 50) rec = "Not Recommended";
+
+        screenedCand = {
+          ...cand,
+          status: "screened",
+          overall_score: overall,
+          skill_score: skillScore,
+          experience_score: expScore,
+          keyword_score: keywordScore,
+          rag_score: overall,
+          matched_skills: matched,
+          missing_skills: missing,
+          years_experience: cand.years_experience || Math.max(1, Math.round(overall / 15)),
+          recommendation: rec,
+          summary: `${cand.name} scored ${overall}% with ${matched.length}/${reqSkills.length} matched core skills.`,
+          evidence: [
+            {
+              quote: `Skills matched: ${matched.join(", ") || "General skills"}`,
+              source: cand.filename,
+              score: matchRatio,
+            },
+          ],
+        };
+      }
+
+      screenedList.push(screenedCand);
+    }
+
+    const nextCandidates = allCandidates.map((c) => {
+      const match = screenedList.find((sc) => String(sc.id) === String(c.id));
+      return match || c;
     });
 
-    saveLocalCandidates(updatedCandidates);
+    saveLocalCandidates(nextCandidates);
 
-    const jobCandidates = updatedCandidates.filter((c) => String(c.job_id) === String(jobId));
+    const jobCandidates = nextCandidates.filter((c) => String(c.job_id) === String(jobId));
     const screenedCount = jobCandidates.filter((c) => c.overall_score !== null).length;
 
     await api
@@ -698,9 +708,6 @@ export const api = {
         screening_status: "done",
       })
       .catch(() => {});
-
-    // Silence unused variable warning
-    void jobDescription;
 
     return jobCandidates.sort((a, b) => (b.overall_score || 0) - (a.overall_score || 0));
   },

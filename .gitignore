@@ -3,36 +3,48 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-*.egg-info/
-dist/
-build/
-*.egg
-
-# Virtual environments
-venv/
-.venv/
+.Python
 env/
-
-# Environment variables
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 .env
-.env.local
-*.env
+.venv
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# IDE / OS
-.vscode/
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+*.local
+
+# IDE
 .idea/
-.DS_Store
-Thumbs.db
+.vscode/
 *.swp
 *.swo
 
-# Configs
-.gemini/
-
-# Testing
+# Database & Testing
 .pytest_cache/
-htmlcov/
 .coverage
-
-# Database
-database/
+htmlcov/
+*.log

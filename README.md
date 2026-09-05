@@ -1,147 +1,160 @@
-# AI Resume Screening Assistant
+# 🚀 AI Resume Screening Assistant
 
-AI-powered candidate screening and verification platform — developed for the 2026 Prodapt hackathon.
+> **AI-powered candidate screening and verification platform** developed for the 2026 Prodapt Hackathon.
 
-## Overview
+An intelligent, multi-agent pipeline designed to automate and enhance technical recruitment. The system analyses job descriptions and resumes, intelligently matches candidate skills and experience against requirements, and provides an evidence-backed, recruiter-friendly screening report.
 
-The system analyzes job descriptions and resumes, matches candidate skills and experience against job requirements, and provides evidence-backed screening results. It integrates a PostgreSQL database layer for persistence and a multi-agent AI pipeline for extraction and matching.
+---
 
-## Architecture
+## 🌟 Key Features
 
+- **Multi-Agent Orchestration**: Five specialised AI agents collaborating via a single Gemini LLM.
+- **RAG-Powered Evidence**: Extracts resume text with page-awareness, chunks it, and retrieves evidence to back up every skill match.
+- **Deterministic Scoring**: Eliminates LLM bias by calculating the final candidate score using a strict Python-based formula.
+- **Fair Gap Analysis**: Identifies missing skills as `NO_EVIDENCE` rather than incorrectly claiming a candidate "lacks" a skill.
+- **Graceful Persistence**: Automatically saves screening results, candidates, and job requirements to PostgreSQL if available, while degrading gracefully to in-memory processing if the database is offline.
+
+---
+
+## 🏗️ System Architecture
+
+The application relies on a FastAPI backend orchestrating a multi-agent AI pipeline. 
+
+### Pipeline Flow
+
+```mermaid
+graph TD
+    A[API Request: Resume + JD] --> B(Resume Analyzer Agent)
+    A --> C(JD Analyzer Agent)
+    
+    B --> D[Structured Resume Analysis]
+    C --> E[Structured Job Requirements]
+    
+    D --> F{RAG Pipeline}
+    
+    F -->|Chunk & Embed| G[(In-Memory Vector Search)]
+    E --> G
+    
+    G -->|Evidence Retrieval| H(Skill Matching Agent)
+    
+    H --> I(Gap Analyzer Agent)
+    I --> J[Deterministic Scoring Engine]
+    J --> K(Report Generator Agent)
+    
+    K --> L[Final ScreeningResult JSON]
 ```
-POST /screen (resume_text + job_description)
-       │
-       ▼
-┌─────────────────────────────────────────────────────┐
-│  Agent 1: Resume Analyzer      →  ResumeAnalysis    │
-│  Agent 2: JD Analyzer          →  JobAnalysis       │
-│  RAG: Chunk → Embed → Retrieve →  Evidence          │
-│  Agent 3: Skill Matching       →  MatchingResult    │
-│  Agent 4: Gap Analyzer         →  GapAnalysis       │
-│  Scorer:  Deterministic Python →  CandidateScore    │
-│  Agent 5: Report Generator     →  CandidateReport   │
-└─────────────────────────────────────────────────────┘
-       │
-       ▼
-  ScreeningResult (JSON)
-```
 
-All five "agents" use **one Gemini LLM** with specialised prompts and Pydantic structured outputs.
+### Component Breakdown
+1. **Resume Agent**: Extracts structured data (experience, education) from raw text.
+2. **JD Agent**: Extracts mandatory and preferred skills from the job description.
+3. **Retrieval Service**: Chunks the resume and performs cosine similarity search using Gemini's `text-embedding-004` to find evidence backing up skills.
+4. **Matching & Gap Agents**: Classifies skill matches (Match, Partial, No Evidence) and severity of missing skills.
+5. **Scoring Engine**: Evaluates the candidate using a weighted, deterministic algorithm.
+6. **Report Agent**: Summarises the candidate's strengths and weaknesses for a human recruiter.
 
-## Project Structure
+---
 
-```
+## 📂 Project Structure
+
+```text
 prodapt-hackathon/
-├── README.md                  ← this file
 ├── app/                       ← AI Application
-│   ├── agents/                # Specialised LLM agents
-│   ├── services/              # LLM, Embedding, Retrieval, and Parsing services
-│   ├── schemas/               # Pydantic models
+│   ├── agents/                # Specialised LLM agents (resume, jd, matching, gap, report)
+│   ├── services/              # Document Parsing, RAG Retrieval, Embedding, and LLM services
+│   ├── schemas/               # Pydantic structured output models
 │   ├── scoring/               # Deterministic scoring engine
+│   ├── api/                   # REST API routes (Auth)
+│   ├── core/                  # Security (JWT) and Configuration (pydantic-settings)
 │   ├── pipeline.py            # End-to-end orchestration
-│   └── main.py                # FastAPI application
+│   └── main.py                # FastAPI entry point
+│
 ├── database/                  ← PostgreSQL database layer
-│   ├── README.md              ← database setup guide
-│   ├── run_migrations.sh      ← migration runner (Linux/macOS)
-│   ├── run_migrations.bat     ← migration runner (Windows)
-│   ├── migrations/            ← versioned SQL migration files
-│   ├── queries/               ← example SQL queries
-│   └── diagrams/              ← ER diagrams (Mermaid)
-└── tests/                     ← Unit + integration tests
+│   ├── README.md              # Database setup guide
+│   ├── run_migrations.sh      # Migration runner
+│   └── migrations/            # Versioned SQL schemas
+│
+└── tests/                     ← Pytest Unit & Integration tests
 ```
 
-## Quick Start (Database)
+---
 
-See [`database/README.md`](database/README.md) for full setup instructions.
+## 🛠️ Tech Stack
 
+| Component | Technology | Cost / License |
+| :--- | :--- | :--- |
+| **Backend Framework** | FastAPI, Python 3 | Open Source |
+| **AI / LLM** | Google Gemini (2.0 Flash) | Free Tier |
+| **Embeddings** | text-embedding-004 | Free Tier |
+| **Database** | PostgreSQL 15+ & pgvector | Open Source |
+| **Authentication** | JWT (python-jose) | Open Source |
+
+---
+
+## 🚀 Getting Started
+
+### 1. Database Setup (Optional)
+The system degrades gracefully without a database, but to enable persistence:
 ```bash
-# Start PostgreSQL with pgvector
-docker run -d --name screening-db \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=screening_db \
-  -p 5432:5432 \
-  pgvector/pgvector:pg16
+# Start PostgreSQL via Docker
+docker run -d --name screening-db -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=screening_db -p 5432:5432 pgvector/pgvector:pg16
 
-# Run migrations with seed data
+# Run migrations
 cd database
-./run_migrations.sh --seed        # Linux/macOS
-run_migrations.bat --seed         # Windows
+./run_migrations.sh --seed     # Linux/macOS
+run_migrations.bat --seed      # Windows
 ```
 
-## Quick Start (Backend API)
-
+### 2. Backend Setup
 ```bash
-# 1. Create and activate virtual environment
+# Create and activate virtual environment
 python -m venv venv
 venv\Scripts\activate        # Windows
 # source venv/bin/activate   # Linux/Mac
 
-# 2. Install dependencies
+# Install dependencies
 pip install -r requirements.txt
 
-# 3. Configure API key
+# Configure environment variables
 copy .env.example .env
-# Edit .env and add your Gemini API key and Postgres URL
+# Edit .env and add your GEMINI_API_KEY, JWT_SECRET_KEY, and DATABASE_URL
+```
 
-# 4. Run the server
+### 3. Run the API
+```bash
 uvicorn app.main:app --reload --port 8000
+```
 
-# 5. Test text endpoint
-curl -X POST http://localhost:8000/screen \
+---
+
+## ⚡ API Usage
+
+### 1. Obtain Auth Token
+Authenticate with the demo credentials from your `.env`:
+```bash
+curl -X POST http://localhost:8000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"job_description": "...", "resume_text": "..."}'
+  -d '{"username": "admin", "password": "admin"}'
+```
 
-# 6. Test PDF endpoint
+### 2. Screen a Resume (PDF/DOCX Upload)
+Pass the Bearer token returned from the login endpoint:
+```bash
 curl -X POST http://localhost:8000/screen/upload \
+  -H "Authorization: Bearer <YOUR_TOKEN>" \
   -F "resume_file=@/path/to/resume.pdf" \
   -F "job_description=Senior ML Engineer requiring Python..."
 ```
 
-## Database & Persistence
-This branch integrates the `database-security-scalability` schema.
-If `DATABASE_URL` is configured and PostgreSQL is reachable, every screening result (including candidates, jobs, and extracted skills) is saved to the database. If the database is offline, the pipeline gracefully skips persistence and still returns the AI analysis.
+---
 
-## Scoring Formula
+## 🧪 Testing
 
-```
-score = 0.40 × required_skill_score
-      + 0.25 × experience_score
-      + 0.15 × semantic_score
-      + 0.10 × education_score
-      + 0.10 × preferred_skill_score
-```
-
-Weights are configurable. The LLM never determines the final score.
-
-## Key Design Decisions
-
-- **NO_EVIDENCE ≠ lacks skill**: If a resume doesn't mention AWS, we report `NO_EVIDENCE`, not "candidate doesn't know AWS."
-- **Deterministic scoring**: Python calculates the final score, not the LLM.
-- **In-memory RAG**: Uses numpy cosine similarity as a pgvector-free fallback.
-- **Single Gemini client**: All agents share one `LLMService` instance.
-- **Schema validation**: Every LLM response is validated via Pydantic. Invalid JSON triggers a self-correcting retry.
-
-## Tech Stack
-
-| Component   | Technology                | Cost  |
-|------------|---------------------------|-------|
-| Database    | PostgreSQL 15+            | Free  |
-| Vectors     | pgvector                  | Free  |
-| Migrations  | Plain SQL                 | Free  |
-| Security    | Row Level Security (RLS)  | Free  |
-
-## Running Tests
+The platform includes comprehensive test coverage for agents, scoring engines, schema validation, and API endpoints.
 
 ```bash
-# Unit tests (no API key needed)
-pytest tests/test_scorer.py tests/test_schemas.py tests/test_retrieval.py -v
+# Run unit tests (No API key required)
+pytest tests/test_scorer.py tests/test_schemas.py tests/test_retrieval.py tests/test_config.py tests/test_document.py -v
 
-# Full integration test (needs GEMINI_API_KEY)
-pytest tests/test_api.py -v -s -k "strong_candidate" --no-header
+# Run full integration tests (Requires GEMINI_API_KEY)
+pytest tests/test_api.py -v -s
 ```
-
-## Environment Variables
-
-| Variable | Description |
-|---|---|
-| `GEMINI_API_KEY` | Google Gemini API key (required) |

@@ -12,14 +12,16 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.pipeline import ScreeningPipeline
-from app.schemas.models import ScreeningRequest, ScreeningResult
+from app.schemas.models import ScreeningRequest, ScreeningResult, ScreeningRecord
 from app.db.connection import db_pool
 from app.db.repository import ScreeningRepository
-from app.services.pdf_service import PDFService
+from app.services.document_service import DocumentService
+from app.api.auth import router as auth_router
+from app.core.security import get_current_user
 
 # Load .env before anything touches os.getenv
 load_dotenv()
@@ -62,6 +64,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
+
 # ── Lazy pipeline singleton ───────────────────────────────────────
 
 _pipeline: ScreeningPipeline | None = None
@@ -93,7 +97,10 @@ def health_check():
         "a deterministic score, and a recruiter report."
     ),
 )
-def screen_candidate(request: ScreeningRequest) -> ScreeningResult:
+def screen_candidate(
+    request: ScreeningRequest,
+    current_user: str = Depends(get_current_user),
+) -> ScreeningResult:
     """Run the full screening pipeline on raw text."""
     if not request.resume_text.strip():
         raise HTTPException(status_code=422, detail="resume_text must not be empty.")
@@ -135,19 +142,21 @@ def screen_candidate(request: ScreeningRequest) -> ScreeningResult:
     ),
 )
 async def screen_candidate_pdf(
-    resume_file: UploadFile = File(..., description="PDF resume file"),
+    resume_file: UploadFile = File(..., description="PDF or DOCX resume file"),
     job_description: str = Form(..., description="Raw job description text"),
+    current_user: str = Depends(get_current_user),
 ) -> ScreeningResult:
-    """Run the pipeline on an uploaded PDF resume."""
-    if not resume_file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+    """Run the pipeline on an uploaded PDF or DOCX resume."""
+    filename = resume_file.filename or ""
+    if not (filename.lower().endswith('.pdf') or filename.lower().endswith('.docx')):
+        raise HTTPException(status_code=400, detail="Only PDF and DOCX files are supported.")
     
     if not job_description.strip():
         raise HTTPException(status_code=422, detail="job_description must not be empty.")
 
     try:
         file_bytes = await resume_file.read()
-        pages = PDFService.extract_pages(file_bytes)
+        pages = DocumentService.extract_pages(file_bytes, filename)
         
         pipeline = _get_pipeline()
         result = pipeline.screen(
@@ -159,7 +168,7 @@ async def screen_candidate_pdf(
         repo = ScreeningRepository(db_pool)
         sid = repo.persist_screening(
             result, 
-            resume_text=PDFService.pages_to_text(pages),
+            resume_text="\n\n".join(p.text for p in pages),
             job_description=job_description
         )
         if sid:
@@ -172,3 +181,20 @@ async def screen_candidate_pdf(
     except Exception as exc:
         logger.exception("Pipeline failed unexpectedly")
         raise HTTPException(status_code=500, detail=f"Screening failed: {exc}")
+
+
+@app.get(
+    "/screenings/{screening_id}",
+    response_model=ScreeningRecord,
+    tags=["screening"],
+    summary="Get a screening result",
+)
+def get_screening(
+    screening_id: str,
+    current_user: str = Depends(get_current_user),
+) -> ScreeningRecord:
+    repo = ScreeningRepository(db_pool)
+    record = repo.get_screening(screening_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Screening not found")
+    return ScreeningRecord(**record)

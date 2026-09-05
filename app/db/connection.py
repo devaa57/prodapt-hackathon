@@ -10,9 +10,10 @@ without persistence.
 from __future__ import annotations
 
 import logging
-import os
 from contextlib import contextmanager
 from typing import Generator, Optional
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ class DatabasePool:
             )
             return
 
-        db_url = os.getenv("DATABASE_URL")
+        db_url = settings.database_url
         if not db_url:
             logger.warning(
                 "DATABASE_URL not set — database persistence disabled"

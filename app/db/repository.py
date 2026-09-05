@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from app.core.config import settings
 from app.db.connection import DatabasePool
 from app.schemas.models import (
     CandidateScore,
@@ -67,9 +67,7 @@ class ScreeningRepository:
 
     def __init__(self, pool: DatabasePool) -> None:
         self.pool = pool
-        self.default_org_id = os.getenv(
-            "DEFAULT_ORG_ID", "a0000000-0000-0000-0000-000000000001"
-        )
+        self.default_org_id = settings.default_org_id
 
     # ── write ──────────────────────────────────────────────────────
 

@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from typing import TypeVar, Type
 
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, ValidationError
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class LLMService:
         api_key: str | None = None,
         model: str = "gemini-2.0-flash",
     ) -> None:
-        resolved_key = api_key or os.getenv("GEMINI_API_KEY", "")
+        resolved_key = api_key or settings.gemini_api_key
         if not resolved_key:
             raise ValueError(
                 "GEMINI_API_KEY is not set. "
